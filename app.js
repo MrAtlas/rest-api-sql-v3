@@ -1,26 +1,17 @@
 'use strict';
 
-// load modules
+// Load modules
 const express = require('express');
 const morgan = require('morgan');
 const { Sequelize } = require('sequelize');
 
-// variable to enable global error logging
+var bodyParser = require('body-parser');
+
+// Variable to enable global error logging
 const enableGlobalErrorLogging = process.env.ENABLE_GLOBAL_ERROR_LOGGING === 'true';
 
-// create the Express app
-const app = express();
-
-//------
-
-//importing the api.js from routes
-const routesUsers = require('./routes/users');
-const routesCourses = require('./routes/courses');
-
-// importing the config.json from config folder
+// Create a new Sequelize instance with the database configuration
 const config = require('./config/config.json');
-
-// Create a new Sequelize instance
 const sequelize = new Sequelize(
   config.development.database,
   config.development.username,
@@ -29,39 +20,55 @@ const sequelize = new Sequelize(
   dialect: config.development.dialect,
 });
 
-// testing the database connection
+// Testing the database connection
 sequelize.authenticate()
   .then(() => {
     console.log('Database connection successful!');
+    startServer(); 
   })
   .catch((err) => {
-    console.error('Unable to connect to database:', err);
+    console.error('Unable to connect to the database:', err);
   });
 
-//------
+// Create the Express app
+const app = express();
 
-// setup morgan which gives us http request logging
+// Import the route handlers for users and courses
+const routesUsers = require('./routes/users');
+const routesCourses = require('./routes/courses');
+
+//I was having always the same error, even though I created the JSON user or course, I was getting an empty req.body, 
+// so after a research I found this resource
+//https://stackoverflow.com/questions/31967138/node-js-express-js-bodyparser-post-limit
+app.use(bodyParser.json({
+  parameterLimit: 100000,
+  limit: '50mb',
+  extended: true
+}));
+
+
+// Setup request logging
 app.use(morgan('dev'));
 
-// setup a friendly greeting for the root route
+// A friendly greeting for the root route
 app.get('/', (req, res) => {
   res.json({
     message: 'Welcome to the REST API project!',
   });
 });
 
-//using the routes created in the routes folder
+// Use the route handlers for users and courses
 app.use('/api/users', routesUsers);
 app.use('/api/courses', routesCourses);
 
-// send 404 if no other route matched
+// Send a 404 response if no other route matched
 app.use((req, res) => {
   res.status(404).json({
     message: 'Route Not Found',
   });
 });
 
-// setup a global error handler
+// Global error handler
 app.use((err, req, res, next) => {
   if (enableGlobalErrorLogging) {
     console.error(`Global error handler: ${JSON.stringify(err.stack)}`);
@@ -73,10 +80,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-// set our port
+// Set the port
 app.set('port', process.env.PORT || 5000);
 
-// start listening on our port
-const server = app.listen(app.get('port'), () => {
-  console.log(`Express server is listening on port ${server.address().port}`);
-});
+// Function to start the Express server
+function startServer() {
+  const server = app.listen(app.get('port'), () => {
+    console.log(`Express server is listening on port ${server.address().port}`);
+  });
+}
+
